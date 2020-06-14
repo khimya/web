@@ -1,0 +1,1693 @@
+<?php 
+	include("includes/connection.php");
+ 	include("includes/function.php"); 
+ 	include("language/app_language.php"); 	
+ 	include("smtp_email.php");
+   
+    error_reporting(0);
+	
+	$file_path = getBaseUrl();
+
+	define("PACKAGE_NAME",$settings_details['package_name']);
+
+	define("IOS_BUNDLE_IDENTIFIER",$settings_details['ios_bundle_identifier']);
+	 
+	function get_thumb($filename,$thumb_size)
+	{	
+
+		$file_path = getBaseUrl();
+
+		return $thumb_path=$file_path.'thumb.php?src='.$filename.'&size='.$thumb_size;
+	}
+
+	function get_resolution($filename)
+	{	
+		$data = getimagesize($filename);
+		$width = $data[0];
+		$height = $data[1];
+
+		return $width.'X'.$height;
+	}
+
+	function get_size($filename)
+	{	 
+		$size = filesize($filename);
+	    $units = array( 'B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
+	    $power = $size > 0 ? floor(log($size, 1024)) : 0;
+	    return number_format($size / pow(1024, $power), 2, '.', ',') . ' ' . $units[$power];
+     
+	}
+
+	function get_total_wallpaper($cat_id,$type=null)
+	{	
+ 		global $mysqli;
+
+ 		if($type==null || $type==''){
+ 			$qry_wallpaper="SELECT COUNT(*) as num FROM tbl_wallpaper WHERE cat_id='".$cat_id."'";	
+ 		}else{
+ 			$type=trim($type);
+ 			$qry_wallpaper="SELECT COUNT(*) as num FROM tbl_wallpaper WHERE cat_id='".$cat_id."' AND `wallpaper_type`='$type'";
+ 		}
+		 
+		$total_wallpaper = mysqli_fetch_array(mysqli_query($mysqli,$qry_wallpaper));
+		$total_wallpaper = $total_wallpaper['num'];
+		 
+		return $total_wallpaper;
+
+	}
+
+	// for varified of purches
+	
+	if($settings_details['envato_buyer_name']=='' OR $settings_details['envato_purchase_code']=='' OR $settings_details['envato_purchased_status']==0) {  
+
+		$set['HD_WALLPAPER'][] =array('MSG' => 'Purchase code verification failed!','success'=>-1);	
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+	}
+ 	
+ 	$get_method = checkSignSalt($_POST['data']);
+
+	if($get_method['method_name']=="get_home")	
+	{
+
+	  	$home_limit = HOME_LIMIT;
+
+	  	if($get_method['type']!=''){
+	  		$type=$get_method['type'];
+
+	  		$jsonObj0= array();	
+
+		    $query0="SELECT * FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+				WHERE tbl_wallpaper.`featured`='1' AND tbl_category.`status`='1' AND tbl_wallpaper.`wallpaper_type`='$type'
+				ORDER BY tbl_wallpaper.`id` DESC LIMIT $home_limit";
+
+			$sql0 = mysqli_query($mysqli,$query0);
+
+			while($data0 = mysqli_fetch_assoc($sql0))
+			{
+				$row0['id'] = $data0['id'];
+				$row0['cat_id'] = $data0['cat_id'];
+				$row0['wallpaper_type'] = $data0['wallpaper_type'];
+	 			$row0['wallpaper_image'] = $file_path.'categories/'.$data0['cat_id'].'/'.$data0['image'];
+	 			$row0['wallpaper_image_thumb'] = get_thumb('categories/'.$data0['cat_id'].'/'.$data0['image'],'300x300');
+	 			$row0['total_views'] = $data0['total_views'];
+	 			$row0['total_rate'] = $data0['total_rate'];
+		        $row0['rate_avg'] = $data0['rate_avg'];
+
+		        $row0['wall_tags'] = $data0['wall_tags'];	        
+		        $row0['wall_colors'] = $data0['wall_colors'];	        
+
+				$row0['cid'] = $data0['cid'];
+				$row0['category_name'] = $data0['category_name'];
+				$row0['category_image'] = $file_path.'images/'.$data0['category_image'];
+				$row0['category_image_thumb'] = get_thumb('images/'.$data0['category_image'],'300x300');
+				 
+
+				array_push($jsonObj0,$row0);
+			
+			}
+
+			$row['featured_wallpaper']=$jsonObj0;
+
+			$jsonObj1= array();
+		
+			$cid=API_CAT_ORDER_BY;
+
+			$query1="SELECT cid,category_name,category_image FROM tbl_category WHERE status='1' ORDER BY tbl_category.".$cid."";
+			$sql1 = mysqli_query($mysqli,$query1);
+
+			while($data1 = mysqli_fetch_assoc($sql1))
+			{
+				
+				$row1['cid'] = $data1['cid'];
+				$row1['category_name'] = $data1['category_name'];
+				$row1['category_image'] = $file_path.'images/'.$data1['category_image'];
+				$row1['category_image_thumb'] = get_thumb('images/'.$data1['category_image'],'300x300');
+				$row1['category_total_wall'] = get_total_wallpaper($data1['cid'],$type);
+
+				array_push($jsonObj1,$row1);
+			
+			}
+
+			$row['wallpaper_category']=$jsonObj1;
+
+			$jsonObj2= array();	
+	
+		    $query2="SELECT * FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+				WHERE tbl_wallpaper.`wallpaper_type`='$type' AND tbl_category.`status`='1' 
+				ORDER BY tbl_wallpaper.`id` DESC LIMIT $home_limit";
+
+
+			$sql2 = mysqli_query($mysqli,$query2);
+
+			while($data2 = mysqli_fetch_assoc($sql2))
+			{
+				$row2['id'] = $data2['id'];
+				$row2['cat_id'] = $data2['cat_id'];
+				$row2['wallpaper_type'] = $data2['wallpaper_type'];
+	 			$row2['wallpaper_image'] = $file_path.'categories/'.$data2['cat_id'].'/'.$data2['image'];
+	 			$row2['wallpaper_image_thumb'] = get_thumb('categories/'.$data2['cat_id'].'/'.$data2['image'],'300x300');
+	 			$row2['total_views'] = $data2['total_views'];
+	 			$row2['total_rate'] = $data2['total_rate'];
+		        $row2['rate_avg'] = $data2['rate_avg'];
+
+		        $row2['wall_tags'] = $data2['wall_tags'];
+		        $row2['wall_colors'] = $data2['wall_colors'];
+
+				$row2['cid'] = $data2['cid'];
+				$row2['category_name'] = $data2['category_name'];
+				$row2['category_image'] = $file_path.'images/'.$data2['category_image'];
+				$row2['category_image_thumb'] = get_thumb('images/'.$data2['category_image'],'300x300');
+				 
+
+				array_push($jsonObj2,$row2);
+			
+			}
+
+			$row['latest_wallpaper']=$jsonObj2;
+
+			$jsonObj4= array();	
+
+		    $sql="SELECT * FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+				WHERE tbl_wallpaper.`wallpaper_type`='$type' AND tbl_category.`status`='1'
+				ORDER BY tbl_wallpaper.`total_views` DESC LIMIT $home_limit";
+
+			$result4 = mysqli_query($mysqli,$sql);
+
+			while($data0 = mysqli_fetch_assoc($result4))
+			{
+				$row0['id'] = $data0['id'];
+				$row0['cat_id'] = $data0['cat_id'];
+				$row0['wallpaper_type'] = $data0['wallpaper_type'];
+	 			$row0['wallpaper_image'] = $file_path.'categories/'.$data0['cat_id'].'/'.$data0['image'];
+	 			$row0['wallpaper_image_thumb'] = get_thumb('categories/'.$data0['cat_id'].'/'.$data0['image'],'300x300');
+	 			$row0['total_views'] = $data0['total_views'];
+	 			$row0['total_rate'] = $data0['total_rate'];
+		        $row0['rate_avg'] = $data0['rate_avg'];
+
+		        $row0['wall_tags'] = $data0['wall_tags'];	        
+		        $row0['wall_colors'] = $data0['wall_colors'];	        
+
+				$row0['cid'] = $data0['cid'];
+				$row0['category_name'] = $data0['category_name'];
+				$row0['category_image'] = $file_path.'images/'.$data0['category_image'];
+				$row0['category_image_thumb'] = get_thumb('images/'.$data0['category_image'],'300x300');
+				 
+				array_push($jsonObj4,$row0);
+			
+			}
+
+			$row['popular_wallpaper']=$jsonObj4;
+
+			$jsonObj5= array();
+		
+			$query1="SELECT * FROM tbl_color WHERE color_status='1' ORDER BY color_id DESC";
+			$sql1 = mysqli_query($mysqli,$query1);
+
+			while($data1 = mysqli_fetch_assoc($sql1))
+			{
+				
+				$row5['color_id'] = $data1['color_id'];
+				$row5['color_name'] = $data1['color_name'];
+				$row5['color_code'] = $data1['color_code'];
+
+				array_push($jsonObj5,$row5);
+			
+			}
+
+			$row['wallpaper_colors']=$jsonObj5;
+
+	  	}
+
+		$set['HD_WALLPAPER'] = $row;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+	}
+	elseif ($get_method['method_name']=="get_latest") {
+		
+		$page_limit=API_LATEST_LIMIT;
+
+		$limit=($get_method['page']-1) * $page_limit;
+		$colors_arr=explode(',', $get_method['color_id']);	// 2, 4
+		if($get_method['type']!='')
+		{
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+				WHERE tbl_wallpaper.`wallpaper_type` = '".$get_method['type']."' AND tbl_category.`status`='1'
+				ORDER BY tbl_wallpaper.`id`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			$jsonObj= array();	
+
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`wallpaper_type` = '".$get_method['type']."' AND tbl_category.`status`='1' AND ($column)
+					ORDER BY tbl_wallpaper.id DESC LIMIT $limit,$page_limit";
+
+			}else{
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`wallpaper_type` = '".$get_method['type']."' AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`id` DESC LIMIT $limit,$page_limit";
+			}
+		}
+		else
+		{
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` AND tbl_category.`status`='1' 
+				ORDER BY tbl_wallpaper.`id`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+			$jsonObj= array();	
+
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+				WHERE
+					($column) AND tbl_category.`status`='1'
+				ORDER BY tbl_wallpaper.`id` DESC LIMIT $limit,$page_limit";
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE tbl_category.`status`='1' 
+					ORDER BY tbl_wallpaper.`id` DESC LIMIT $limit,$page_limit";
+			}
+		}
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{	
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];
+			$row['cat_id'] = $data['cat_id'];
+			$row['wallpaper_type'] = $data['wallpaper_type'];
+ 			$row['wallpaper_image'] = $file_path.'categories/'.$data['cat_id'].'/'.$data['image'];
+ 			$row['wallpaper_image_thumb'] = get_thumb('categories/'.$data['cat_id'].'/'.$data['image'],'300x300');
+ 			$row['total_views'] = $data['total_views']; 
+ 			$row['total_rate'] = $data['total_rate'];
+            $row['rate_avg'] = $data['rate_avg'];
+            $row['wall_tags'] = $data['wall_tags'];
+            $row['wall_colors'] = $data['wall_colors'];
+
+			$row['cid'] = $data['cid'];
+			$row['category_name'] = $data['category_name'];
+			$row['category_image'] = $file_path.'images/'.$data['category_image'];
+			$row['category_image_thumb'] = get_thumb('images/'.$data['category_image'],'300x300');
+			 
+
+			array_push($jsonObj,$row);
+		
+		}
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_category") {
+
+		$jsonObj= array();	
+ 
+		$cat_order=API_CAT_ORDER_BY;
+
+		$type=$get_method['type'];
+		
+		$query="SELECT cid,category_name,category_image FROM tbl_category WHERE tbl_category.`status`='1' ORDER BY ".$cat_order."";
+
+		$sql = mysqli_query($mysqli,$query)or die(mysqli_error());
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			$row['cid'] = $data['cid'];
+			$row['category_name'] = $data['category_name'];
+			$row['category_image'] = $file_path.'images/'.$data['category_image'];
+			$row['category_image_thumb'] = get_thumb('images/'.$data['category_image'],'300x300');
+			$row['category_total_wall'] = get_total_wallpaper($data['cid'],$type);
+			array_push($jsonObj,$row);
+		
+		}
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_wallpaper") {
+		
+		$post_order_by=API_CAT_POST_ORDER_BY;
+		$page_limit=10;
+		$cat_id=$get_method['cat_id'];	
+		$limit=($get_method['page']-1) * $page_limit;
+		$colors_arr=explode(',', $get_method['color_id']);	// 2, 4
+
+		if($get_method['type']!='')
+		{
+
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+				where tbl_wallpaper.`cat_id`='".$cat_id."' AND tbl_category.`status`='1' AND tbl_wallpaper.`wallpaper_type` = '".$get_method['type']."' ORDER BY tbl_wallpaper.`id`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			$jsonObj= array();	
+
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`cat_id`='".$cat_id."' AND tbl_category.`status`='1' AND tbl_wallpaper.`wallpaper_type` = '".$get_method['type']."'
+						AND ($column)
+					 ORDER BY tbl_wallpaper.`id` ".$post_order_by." LIMIT $limit, $page_limit";
+
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`cat_id`='$cat_id' AND tbl_category.`status`='1' AND tbl_wallpaper.`wallpaper_type` = '".$get_method['type']."'
+					 ORDER BY tbl_wallpaper.`id` ".$post_order_by." LIMIT $limit, $page_limit";
+			}
+
+		}
+		else
+		{
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+				WHERE tbl_wallpaper.`cat_id`='".$cat_id."' AND tbl_category.`status`='1' ORDER BY tbl_wallpaper.id";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			$jsonObj= array();	
+				
+			if($colors_arr[0]!=''){
+
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+						LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+						WHERE tbl_wallpaper.`cat_id`='$cat_id'
+						AND ($column) AND tbl_category.`status`='1'
+					 	ORDER BY tbl_wallpaper.`id` ".$post_order_by." LIMIT $limit, $page_limit";
+
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`cat_id`='$cat_id' AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`id`".$post_order_by." LIMIT $limit, $page_limit";
+			}
+		}
+ 
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];
+			$row['cat_id'] = $data['cat_id'];
+			$row['wallpaper_type'] = $data['wallpaper_type'];
+ 			$row['wallpaper_image'] = $file_path.'categories/'.$data['cat_id'].'/'.$data['image'];
+ 			$row['wallpaper_image_thumb'] = get_thumb('categories/'.$data['cat_id'].'/'.$data['image'],'300x300');
+ 			$row['total_views'] = $data['total_views'];
+ 			$row['total_rate'] = $data['total_rate'];
+	        $row['rate_avg'] = $data['rate_avg'];
+	        $row['wall_tags'] = $data['wall_tags'];
+	        $row['wall_colors'] = $data['wall_colors'];
+			$row['cid'] = $data['cid'];
+			$row['category_name'] = $data['category_name'];
+			$row['category_image'] = $file_path.'images/'.$data['category_image'];
+			$row['category_image_thumb'] = get_thumb('images/'.$data['category_image'],'300x300');
+			 
+
+			array_push($jsonObj,$row);
+		
+		}
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_single_wallpaper") {
+		
+		$jsonObj= array();	
+
+		$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`id` = '".$get_method['wallpaper_id']."' AND tbl_category.`status`='1'";
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			 
+			$row['id'] = $data['id'];
+			$row['cat_id'] = $data['cat_id'];
+			$row['category_name'] = $data['category_name'];
+			$row['wallpaper_type'] = $data['wallpaper_type'];
+ 			$row['wallpaper_image'] = $file_path.'categories/'.$data['cat_id'].'/'.$data['image'];
+ 			$row['wallpaper_image_thumb'] = get_thumb('categories/'.$data['cat_id'].'/'.$data['image'],'300x300');
+ 			$row['total_views'] = $data['total_views'];
+ 			$row['total_rate'] = $data['total_rate'];
+	        $row['rate_avg'] = $data['rate_avg'];
+	        $row['total_download'] = $data['total_download'];
+ 			$row['wall_tags'] = $data['wall_tags'];
+ 			$row['wall_colors'] = $data['wall_colors'];
+ 			$row['resolution'] = get_resolution($file_path.'categories/'.$data['cat_id'].'/'.$data['image']);
+	        $row['size'] = get_size('categories/'.$data['cat_id'].'/'.$data['image']);
+
+			array_push($jsonObj,$row);
+		
+		}
+
+		$view_qry=mysqli_query($mysqli,"UPDATE tbl_wallpaper SET total_views = total_views + 1 WHERE id = '".$get_method['wallpaper_id']."'");
+  
+  
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_wallpaper_most_viewed") {
+		
+		$limit=($get_method['page']-1) * 10;
+		$colors_arr=explode(',', $get_method['color_id']);	// 2, 4
+		if($get_method['type']!='')
+		{
+			$type=$get_method['type'];
+
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+				WHERE tbl_wallpaper.`wallpaper_type` = '$type' AND tbl_category.`status`='1' 
+				ORDER BY tbl_wallpaper.`total_views` DESC";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			$jsonObj= array();	
+
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+						LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE tbl_wallpaper.`wallpaper_type` = '$type'
+					AND ($column) AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`total_views` DESC LIMIT $limit,10";
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE tbl_wallpaper.`wallpaper_type` = '$type' AND tbl_category.`status`='1' 
+					ORDER BY tbl_wallpaper.`total_views` DESC LIMIT $limit,10";
+			}
+
+		}
+		else
+		{
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+				WHERE tbl_category.`status`='1' 
+				ORDER BY tbl_wallpaper.`total_views`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			$jsonObj= array();	
+
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE ($column) AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`total_views` DESC LIMIT $limit,10";
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`total_views` DESC LIMIT $limit,10";
+			}
+
+		}
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];
+			$row['cat_id'] = $data['cat_id'];
+			$row['wallpaper_type'] = $data['wallpaper_type'];
+ 			$row['wallpaper_image'] = $file_path.'categories/'.$data['cat_id'].'/'.$data['image'];
+ 			$row['wallpaper_image_thumb'] = get_thumb('categories/'.$data['cat_id'].'/'.$data['image'],'300x300');
+ 			$row['total_views'] = $data['total_views']; 
+ 			$row['total_rate'] = $data['total_rate'];
+        	$row['rate_avg'] = $data['rate_avg'];
+        	$row['wall_tags'] = $data['wall_tags'];
+        	$row['wall_colors'] = $data['wall_colors'];
+			$row['cid'] = $data['cid'];
+			$row['category_name'] = $data['category_name'];
+			$row['category_image'] = $file_path.'images/'.$data['category_image'];
+			$row['category_image_thumb'] = get_thumb('images/'.$data['category_image'],'300x300');
+			 
+
+			array_push($jsonObj,$row);
+		
+		}
+
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_wallpaper_most_rated") {
+		
+		$limit=($get_method['page']-1) * 10;
+		$colors_arr=explode(',', $get_method['color_id']);	// 2, 4
+		if($get_method['type']!='')
+		{
+			$type=$get_method['type'];
+
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+				WHERE tbl_wallpaper.`wallpaper_type` = '$type' AND tbl_category.`status`='1' 
+				ORDER BY tbl_wallpaper.`total_rate` DESC";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			$jsonObj= array();	
+	 	
+	 		if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE tbl_wallpaper.`wallpaper_type` = '$type'
+					AND ($column) AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`total_rate` DESC LIMIT $limit,10";
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE tbl_wallpaper.`wallpaper_type` = '$type' AND tbl_category.`status`='1' 
+					ORDER BY tbl_wallpaper.`total_rate` DESC LIMIT $limit,10";
+			}
+
+		}
+		else
+		{
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+				WHERE tbl_category.`status`='1'
+				ORDER BY tbl_wallpaper.`total_rate`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			$jsonObj= array();	
+	 
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE ($column) AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`total_rate` DESC LIMIT $limit,10";
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid`
+					WHERE tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`total_rate` DESC LIMIT $limit,10";
+			}	
+		}
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];
+			$row['cat_id'] = $data['cat_id'];
+			$row['wallpaper_type'] = $data['wallpaper_type'];
+ 			$row['wallpaper_image'] = $file_path.'categories/'.$data['cat_id'].'/'.$data['image'];
+ 			$row['wallpaper_image_thumb'] = get_thumb('categories/'.$data['cat_id'].'/'.$data['image'],'300x300');
+ 			$row['total_views'] = $data['total_views']; 
+ 			$row['total_rate'] = $data['total_rate'];
+            $row['rate_avg'] = $data['rate_avg'];
+            $row['wall_tags'] = $data['wall_tags'];
+            $row['wall_colors'] = $data['wall_colors'];
+			$row['cid'] = $data['cid'];
+			$row['category_name'] = $data['category_name'];
+			$row['category_image'] = $file_path.'images/'.$data['category_image'];
+			$row['category_image_thumb'] = get_thumb('images/'.$data['category_image'],'300x300');
+
+			array_push($jsonObj,$row);
+		
+		}
+
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_latest_gif") {
+		
+		$page_limit=API_LATEST_LIMIT;
+
+		$limit=($get_method['page']-1) * $page_limit;
+
+		$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper_gif
+			ORDER BY tbl_wallpaper_gif.`id`";
+
+		$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+		$jsonObj= array();	
+ 
+		$query="SELECT * FROM tbl_wallpaper_gif
+			ORDER BY tbl_wallpaper_gif.`id` DESC LIMIT $limit,$page_limit";
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{	
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];			 
+		    $row['gif_image'] = $file_path.'images/animation/'.$data['image'];
+		    $row['gif_tags'] = $data['gif_tags'];
+ 			$row['total_views'] = $data['total_views']; 
+ 			$row['total_rate'] = $data['total_rate'];
+        	$row['rate_avg'] = $data['rate_avg'];
+			 
+
+			array_push($jsonObj,$row);
+		
+		}
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+
+	else if ($get_method['method_name']=="get_check_favorite") {
+		
+
+		$page_limit=API_LATEST_LIMIT;
+
+		$limit=($get_method['page']-1) * $page_limit;
+
+		$jsonObj1= array();	
+
+	 	$ids=$get_method['id'];	
+
+		if($get_method['type']=='wallpaper')	
+		{
+           
+
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+				WHERE tbl_wallpaper.`id` IN ($ids) AND tbl_category.`status`='1'   
+				ORDER BY tbl_wallpaper.`id`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+			
+		 	     $query0="SELECT * FROM tbl_wallpaper
+			     LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+				 WHERE tbl_wallpaper.`id` IN ($ids) AND tbl_category.`status`='1'
+				  LIMIT $limit, $page_limit";
+	
+			$sql0 = mysqli_query($mysqli,$query0) or die (mysqli_error($mysqli));
+
+			while($data0 = mysqli_fetch_assoc($sql0))
+			{	
+			    $row0['num'] = $total_pages['num'];
+				$row0['id'] = $data0['id'];
+				$row0['cat_id'] = $data0['cat_id'];
+				$row0['wallpaper_type'] = $data0['wallpaper_type'];
+	 			$row0['wallpaper_image'] = $file_path.'categories/'.$data0['cat_id'].'/'.$data0['image'];
+	 			$row0['wallpaper_image_thumb'] = get_thumb('categories/'.$data0['cat_id'].'/'.$data0['image'],'300x300');
+	 			$row0['total_views'] = $data0['total_views']; 
+	 			$row0['total_rate'] = $data0['total_rate'];
+	            $row0['rate_avg'] = $data0['rate_avg'];
+	            $row0['wall_tags'] = $data0['wall_tags'];
+	            $row0['wall_colors'] = $data0['wall_colors'];
+
+				$row0['cid'] = $data0['cid'];
+				$row0['category_name'] = $data0['category_name'];
+				$row0['category_image'] = $file_path.'images/'.$data0['category_image'];
+				$row0['category_image_thumb'] = get_thumb('images/'.$data0['category_image'],'300x300');
+				 
+				
+				array_push($jsonObj1,$row0);
+			}
+
+		}
+		else{
+           		
+           		$page_limit=API_LATEST_LIMIT;
+
+		        $limit=($get_method['page']-1) * $page_limit;
+			
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper_gif
+				WHERE tbl_wallpaper_gif.`id` IN ($ids)
+			    ORDER BY tbl_wallpaper_gif.`id`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+         
+		    $query1="SELECT * FROM tbl_wallpaper_gif
+			    WHERE tbl_wallpaper_gif.`id` IN ($ids)
+			     LIMIT $limit,$page_limit";
+		
+			$sql1 = mysqli_query($mysqli,$query1) or die (mysqli_error($mysqli));
+
+			while($data1 = mysqli_fetch_assoc($sql1))
+			{	
+				$row1['num'] = $total_pages['num'];
+				$row1['id'] = $data1['id'];			 
+			    $row1['gif_image'] = $file_path.'images/animation/'.$data1['image'];
+			    $row1['gif_tags'] = $data1['gif_tags'];
+	 			$row1['total_views'] = $data1['total_views']; 
+	 			$row1['total_rate'] = $data1['total_rate'];
+	        	$row1['rate_avg'] = $data1['rate_avg'];
+				
+				array_push($jsonObj1,$row1);
+			}
+		}
+		$set['HD_WALLPAPER'] = $jsonObj1;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_gif_list") {
+		
+		$jsonObj= array();
+		 
+		$gif_order=API_GIF_POST_ORDER_BY;
+
+
+		$query="SELECT * FROM tbl_wallpaper_gif ORDER BY `id` $gif_order";
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			 
+
+			$row['id'] = $data['id'];			 
+			$row['gif_image'] = $file_path.'images/animation/'.$data['image'];
+			$row['gif_tags'] = $data['gif_tags'];
+			$row['total_views'] = $data['total_views'];
+			$row['total_rate'] = $data['total_rate'];
+        	$row['rate_avg'] = $data['rate_avg'];
+ 
+			array_push($jsonObj,$row);
+		
+		}
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_single_gif") {
+		
+		$jsonObj= array();	
+
+		$query="SELECT * FROM tbl_wallpaper_gif WHERE `id`='".$get_method['gif_id']."'";
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			 
+			$row['id'] = $data['id'];			 
+			$row['gif_image'] = $file_path.'images/animation/'.$data['image'];
+			$row['gif_tags'] = $data['gif_tags'];
+ 			$row['total_views'] = $data['total_views'];
+	 		$row['total_rate'] = $data['total_rate'];
+        	$row['rate_avg'] = $data['rate_avg'];
+        	$row['total_download'] = $data['total_download'];
+
+        	$row['resolution'] = get_resolution($file_path.'images/animation/'.$data['image']);
+	        $row['size'] = get_size('images/animation/'.$data['image']);
+
+			array_push($jsonObj,$row);
+		
+		}
+
+		$view_qry=mysqli_query($mysqli,"UPDATE tbl_wallpaper_gif SET total_views = total_views + 1 WHERE id = '".$get_method['gif_id']."'");
+ 
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_gif_wallpaper_most_viewed") {
+		
+		$limit=($get_method['page']-1) * 10;
+
+		$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper_gif
+ 			ORDER BY tbl_wallpaper_gif.`total_views`";
+
+		$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+		$jsonObj= array();	
+ 
+		$query="SELECT * FROM tbl_wallpaper_gif
+			ORDER BY tbl_wallpaper_gif.`total_views` DESC LIMIT $limit,10";
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];			 
+		    $row['gif_image'] = $file_path.'images/animation/'.$data['image'];
+		    $row['gif_tags'] = $data['gif_tags'];
+ 			$row['total_views'] = $data['total_views']; 
+ 			$row['total_rate'] = $data['total_rate'];
+        	$row['rate_avg'] = $data['rate_avg'];
+
+			array_push($jsonObj,$row);
+		
+		}
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_gif_wallpaper_most_rated") {
+		
+		$limit=($get_method['page']-1) * 10;
+
+		$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper_gif
+ 			ORDER BY tbl_wallpaper_gif.`total_rate`";
+
+		$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+
+		$jsonObj= array();	
+ 
+		$query="SELECT * FROM tbl_wallpaper_gif
+			ORDER BY tbl_wallpaper_gif.`total_rate` DESC LIMIT $limit,10";
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];			 
+		    $row['gif_image'] = $file_path.'images/animation/'.$data['image'];
+		    $row['gif_tags'] = $data['gif_tags'];
+ 			$row['total_views'] = $data['total_views']; 
+ 			$row['total_rate'] = $data['total_rate'];
+        	$row['rate_avg'] = $data['rate_avg'];
+
+			array_push($jsonObj,$row);
+		
+		}
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="search_wallpaper") {
+		
+		$jsonObj= array();	
+	 	$colors_arr=explode(',', $get_method['color_id']);	// 2, 4
+
+		
+		if($get_method['type']!='')
+		{
+			
+                 $query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper
+				LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`wallpaper_type`='".$get_method['type']."' AND tbl_wallpaper.`wall_tags` LIKE '%".$get_method['search_text']."%' AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`wall_tags`";
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`wallpaper_type`='".$get_method['type']."' AND tbl_wallpaper.`wall_tags` LIKE '%".$get_method['search_text']."%' 
+					AND ($column) AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`wall_tags`";
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`wallpaper_type`='".$get_method['type']."' AND tbl_wallpaper.`wall_tags` LIKE '%".$get_method['search_text']."%' AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`wall_tags`";
+			}
+			
+		}
+		else
+		{
+			if($colors_arr[0]!=''){
+				$column='';
+				foreach ($colors_arr as $key => $value) {
+					$column.='FIND_IN_SET('.$value.', tbl_wallpaper.`wall_colors`) OR ';
+				}
+
+				$column=rtrim($column,'OR ');
+
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`wall_tags` LIKE '%".$get_method['search_text']."%' 
+					AND ($column) AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.wall_tags";
+			}else{
+				$query="SELECT * FROM tbl_wallpaper
+					LEFT JOIN tbl_category ON tbl_wallpaper.`cat_id`= tbl_category.`cid` 
+					WHERE tbl_wallpaper.`wall_tags` LIKE '%".$get_method['search_text']."%' AND tbl_category.`status`='1'
+					ORDER BY tbl_wallpaper.`wall_tags`";
+			}
+		}
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+			$row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];
+			$row['cat_id'] = $data['cat_id'];
+			$row['wallpaper_type'] = $data['wallpaper_type'];
+ 			$row['wallpaper_image'] = $file_path.'categories/'.$data['cat_id'].'/'.$data['image'];
+ 			$row['wallpaper_image_thumb'] = get_thumb('categories/'.$data['cat_id'].'/'.$data['image'],'300x300');
+ 			$row['total_views'] = $data['total_views']; 
+ 			$row['total_rate'] = $data['total_rate'];
+            $row['rate_avg'] = $data['rate_avg'];
+            $row['wall_tags'] = $data['wall_tags'];
+            $row['wall_colors'] = $data['wall_colors'];
+			$row['cid'] = $data['cid'];
+			$row['category_name'] = $data['category_name'];
+			$row['category_image'] = $file_path.'images/'.$data['category_image'];
+			$row['category_image_thumb'] = get_thumb('images/'.$data['category_image'],'300x300');
+
+			array_push($jsonObj,$row);
+		}
+  
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();	
+		
+	}
+	elseif ($get_method['method_name']=="search_gif") {
+		
+		   $jsonObj= array();	
+	 	
+			$query_rec = "SELECT COUNT(*) as num FROM tbl_wallpaper_gif
+			 WHERE `gif_tags` LIKE '%".$get_method['gif_search_text']."%' ORDER BY tbl_wallpaper_gif.`gif_tags`";
+
+
+			$total_pages = mysqli_fetch_array(mysqli_query($mysqli,$query_rec));
+		 
+		 $query="SELECT * FROM tbl_wallpaper_gif
+			WHERE `gif_tags` LIKE '%".$get_method['gif_search_text']."%' ORDER BY tbl_wallpaper_gif.`gif_tags`";
+
+		$sql = mysqli_query($mysqli,$query);
+
+		while($data = mysqli_fetch_assoc($sql))
+		{
+		    $row['num'] = $total_pages['num'];
+			$row['id'] = $data['id'];			 
+			$row['gif_image'] = $file_path.'images/animation/'.$data['image'];
+			$row['gif_tags'] = $data['gif_tags'];
+			$row['total_views'] = $data['total_views'];
+			$row['total_rate'] = $data['total_rate'];
+        	$row['rate_avg'] = $data['rate_avg'];
+
+			array_push($jsonObj,$row);
+		}
+  
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();	
+		
+	}
+	elseif ($get_method['method_name']=="wallpaper_rate") {
+		
+		$jsonObj= array();	
+
+		$ip = $get_method['device_id'];
+		$post_id = $get_method['post_id'];
+		$user_id = $get_method['device_id'];
+		$therate = $get_method['rate'];
+
+		//echo "select * from tbl_rating where post_id  = '$post_id' && user_id = '$user_id'";
+		$query1 = mysqli_query($mysqli,"select * from tbl_rating where post_id  = '$post_id' && user_id = '$user_id'"); 
+		//exit;
+		while($data1 = mysqli_fetch_assoc($query1)){
+			$rate_db1[] = $data1;
+		}
+
+		if(@count($rate_db1) == 0 ){
+
+		   
+		$res_rat=mysqli_query($mysqli, "INSERT INTO tbl_rating(`post_id`,`user_id`,`rate`,`ip`) VALUES ('$post_id','$user_id','$therate','$ip')"); 
+
+			//$qry = Insert('tbl_rating',$data_r); 
+
+		  //Total rate result
+		   
+		$query = mysqli_query($mysqli,"select * from tbl_rating where post_id  = '$post_id' ");
+		       
+		 while($data = mysqli_fetch_assoc($query)){
+		            $rate_db[] = $data;
+		            $sum_rates[] = $data['rate'];
+		       
+		        }
+
+		        if(@count($rate_db)){
+		            $rate_times = count($rate_db);
+		            $sum_rates = array_sum($sum_rates);
+		            $rate_value = $sum_rates/$rate_times;
+		            $rate_bg = (($rate_value)/5)*100;
+		        }else{
+		            $rate_times = 0;
+		            $rate_value = 0;
+		            $rate_bg = 0;
+		        }
+		 
+		$rate_avg=round($rate_value); 
+
+		$sql="update tbl_wallpaper set total_rate=total_rate + 1,rate_avg='$rate_avg' where id='".$post_id."'";
+		mysqli_query($mysqli,$sql);
+
+		$total_rat_sql="SELECT * FROM tbl_wallpaper WHERE id='".$post_id."'";
+		$total_rat_res=mysqli_query($mysqli,$total_rat_sql);
+		$total_rat_row=mysqli_fetch_assoc($total_rat_res);
+
+		 
+		$jsonObj = array( 'total_rate' => $total_rat_row['total_rate'],'rate_avg' =>$total_rat_row['rate_avg'],'MSG'=>$app_lang['rate_success']);
+
+		}else{
+
+				$jsonObj = array( 'MSG' => $app_lang['rate_already']);
+
+		}
+
+		$set['HD_WALLPAPER'][] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_wallpaper_rate") {
+		$jsonObj= array();	
+
+		$post_id = $get_method['post_id'];
+		$user_id = $get_method['device_id'];
+
+		//echo "select * from tbl_rating where post_id  = '$post_id' && user_id = '$user_id'";
+		$query1 = mysqli_query($mysqli,"select * from tbl_rating where post_id  = '$post_id' && user_id = '$user_id'"); 
+		$data1 = mysqli_fetch_assoc($query1);
+
+		if(@count($data1)== 0)
+		{
+			$jsonObj = array( 'total_rate' => 0);
+		}else{
+			$jsonObj = array( 'total_rate' => $data1['rate']);
+		}
+
+		$set['HD_WALLPAPER'][] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+	}
+	elseif ($get_method['method_name']=="gif_rate") {
+		
+		$jsonObj= array();	
+
+		$ip = $get_method['device_id'];
+		$post_id = $get_method['post_id'];
+		$user_id = $get_method['device_id'];
+		$therate = $get_method['rate'];
+
+		//echo "select * from tbl_rating_gif where post_id  = '$post_id' && user_id = '$user_id'";
+	      $query1 = mysqli_query($mysqli,"select * from tbl_rating_gif where post_id  = '$post_id' && user_id = '$user_id'"); 
+	      //exit;
+	      while($data1 = mysqli_fetch_assoc($query1)){
+	        $rate_db1[] = $data1;
+	      }
+
+	      if(@count($rate_db1) == 0 ){
+		        $res_rat=mysqli_query($mysqli, "INSERT INTO tbl_rating_gif(`post_id`,`user_id`,`rate`,`ip`) VALUES ('$post_id','$user_id','$therate','$ip')"); 
+		           
+		        $query = mysqli_query($mysqli,"select * from tbl_rating_gif where post_id  = '$post_id' ");
+		               
+		         while($data = mysqli_fetch_assoc($query)){
+		                    $rate_db[] = $data;
+		                    $sum_rates[] = $data['rate'];
+		               
+		                }
+		        
+		                if(@count($rate_db)){
+		                    $rate_times = count($rate_db);
+		                    $sum_rates = array_sum($sum_rates);
+		                    $rate_value = $sum_rates/$rate_times;
+		                    $rate_bg = (($rate_value)/5)*100;
+		                }else{
+		                    $rate_times = 0;
+		                    $rate_value = 0;
+		                    $rate_bg = 0;
+		                }
+		         
+		      $rate_avg=round($rate_value); 
+		        
+		      $sql="update tbl_wallpaper_gif set total_rate=total_rate + 1,rate_avg='$rate_avg' where id='".$post_id."'";
+		      mysqli_query($mysqli,$sql);
+		        
+		      $total_rat_sql="SELECT * FROM tbl_wallpaper_gif WHERE id='".$post_id."'";
+		      $total_rat_res=mysqli_query($mysqli,$total_rat_sql);
+		      $total_rat_row=mysqli_fetch_assoc($total_rat_res);
+		    
+		         
+		      $jsonObj = array( 'total_rate' => $total_rat_row['total_rate'],'rate_avg' =>$total_rat_row['rate_avg'],'MSG'=>$app_lang['rate_success']);
+	        
+	      }else{
+	      	  $jsonObj = array( 'MSG' => $app_lang['rate_already']);
+	      }
+
+		$set['HD_WALLPAPER'][] = $jsonObj;
+
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+		
+	}
+	elseif ($get_method['method_name']=="get_gif_rate") {
+		$jsonObj= array();	
+
+		$post_id = $get_method['post_id'];
+		$user_id = $get_method['device_id'];
+
+		$query1 = mysqli_query($mysqli,"select * from tbl_rating_gif where post_id  = '$post_id' && user_id = '$user_id'"); 
+
+		$data1 = mysqli_fetch_assoc($query1);
+
+		if(@count($data1)== 0)
+		{
+			$jsonObj = array( 'total_rate' => 0);
+		}else{
+			$jsonObj = array( 'total_rate' => $data1['rate']);
+		}
+
+		$set['HD_WALLPAPER'][] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+	}
+	elseif ($get_method['method_name']=="download_wallpaper") {
+
+		$jsonObj= array();	
+
+		$view_qry=mysqli_query($mysqli,"UPDATE tbl_wallpaper SET total_download = total_download + 1 WHERE id = '".$get_method['wallpaper_id']."'");
+ 	 
+
+    	$total_dw_sql="SELECT * FROM tbl_wallpaper WHERE id='".$get_method['wallpaper_id']."'";
+	    $total_dw_res=mysqli_query($mysqli,$total_dw_sql);
+	    $total_dw_row=mysqli_fetch_assoc($total_dw_res);
+	    
+	         
+        $jsonObj = array( 'total_download' => $total_dw_row['total_download']);
+
+        $set['HD_WALLPAPER'][] = $jsonObj;
+        header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+	}
+	elseif ($get_method['method_name']=="download_gif") {
+
+		$jsonObj= array();	
+
+		$view_qry=mysqli_query($mysqli,"UPDATE tbl_wallpaper_gif SET total_download = total_download + 1 WHERE id = '".$get_method['gif_id']."'");
+ 	 
+
+    	$total_dw_sql="SELECT * FROM tbl_wallpaper_gif WHERE id='".$get_method['gif_id']."'";
+	    $total_dw_res=mysqli_query($mysqli,$total_dw_sql);
+	    $total_dw_row=mysqli_fetch_assoc($total_dw_res);
+	    
+	         
+	    $jsonObj = array( 'total_download' => $total_dw_row['total_download']);
+
+ 
+        $set['HD_WALLPAPER'][] = $jsonObj;
+        header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();
+	}
+	else if($get_method['method_name']=="get_app_details")
+	{
+
+		$jsonObj= array();	
+
+		$query="SELECT * FROM tbl_settings WHERE id='1'";
+		$sql = mysqli_query($mysqli,$query)or die(mysqli_error());
+
+		$data = mysqli_fetch_assoc($sql);
+		
+		$type=explode(',', $data['item_type']);
+
+		$row['ios_bundle_identifier'] = $data['ios_bundle_identifier'];
+
+		$row['package_name'] = $data['package_name'];
+		$row['app_name'] = $data['app_name'];
+		$row['app_logo'] = $data['app_logo'];
+		$row['app_version'] = $data['app_version'];
+		$row['app_author'] = $data['app_author'];
+		$row['app_contact'] = $data['app_contact'];
+		$row['app_email'] = $data['app_email'];
+		$row['app_website'] = $data['app_website'];
+		$row['app_description'] = $data['app_description'];
+		$row['app_developed_by'] = $data['app_developed_by'];
+
+		$row['app_privacy_policy'] = stripslashes($data['app_privacy_policy']);
+
+		$row['publisher_id'] = $data['publisher_id'];
+		$row['interstital_ad'] = $data['interstital_ad'];
+		$row['interstital_ad_id'] = $data['interstital_ad_id'];
+		$row['interstital_ad_click'] = $data['interstital_ad_click'];
+		$row['banner_ad'] = $data['banner_ad'];
+		$row['banner_ad_id'] = $data['banner_ad_id'];
+
+        $row['facebook_interstital_ad'] = $data['facebook_interstital_ad'];
+        $row['facebook_interstital_ad_id'] = $data['facebook_interstital_ad_id'];
+		$row['facebook_interstital_ad_click'] = $data['facebook_interstital_ad_click'];		
+		$row['facebook_banner_ad'] = $data['facebook_banner_ad'];
+		$row['facebook_banner_ad_id'] = $data['facebook_banner_ad_id'];
+
+        $row['facebook_native_ad'] = $data['facebook_native_ad'];
+        $row['facebook_native_ad_id'] = $data['facebook_native_ad_id'];
+		$row['facebook_native_ad_click'] = $data['facebook_native_ad_click'];		
+		$row['admob_nathive_ad'] = $data['admob_nathive_ad'];
+		$row['admob_native_ad_id'] = $data['admob_native_ad_id'];
+		$row['admob_native_ad_click'] = $data['admob_native_ad_click'];
+
+		$row['publisher_id_ios'] = $data['publisher_id_ios'];
+		// $row['app_id_ios'] = $data['app_id_ios'];
+		$row['interstital_ad_ios'] = $data['interstital_ad_ios'];
+		$row['interstital_ad_id_ios'] = $data['interstital_ad_id_ios'];
+		$row['interstital_ad_click_ios'] = $data['interstital_ad_click_ios'];
+		$row['banner_ad_ios'] = $data['banner_ad_ios'];
+		$row['banner_ad_id_ios'] = $data['banner_ad_id_ios'];
+
+		$row['gif_on_off'] = $data['gif_on_off'];
+
+		if(in_array('Portrait',$type)){ 
+			$row['portrait'] = 'true';
+		}else{
+			$row['portrait'] = 'false';
+		}
+
+		if(in_array('Landscape',$type)){ 
+			$row['landscape'] = 'true';
+		}else{
+			$row['landscape'] = 'false';
+		}
+
+		if(in_array('Square',$type)){ 
+			$row['square'] = 'true';
+		}else{
+			$row['square'] = 'false';
+		}
+
+
+		array_push($jsonObj,$row);
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+		die();	
+	}
+	else if($get_method['method_name']=="user_login")
+	{
+		$jsonObj= array();	
+		
+		$email=$get_method['email'];
+		$password=$get_method['password'];
+
+		$qry = "SELECT * FROM tbl_users WHERE email = '$email'"; 
+
+		$result = mysqli_query($mysqli,$qry);
+			
+		if(mysqli_num_rows($result) > 0)
+		{
+			$row = mysqli_fetch_assoc($result);	
+
+			if($row['status']==1){			
+				if($row['password']==$password){
+					$data['success']="1";
+					$data['MSG']=$app_lang['login_success'];
+					$data['user_id'] = $row['id'];
+		 			$data['name'] = $row['name'];
+
+					array_push($jsonObj,$data);
+
+					$set['HD_WALLPAPER'] = $jsonObj;
+				}else{
+					$info['success']="0";	
+					$info['MSG']=$app_lang['invalid_password'];
+					array_push($jsonObj,$info);
+					$set['HD_WALLPAPER'] = $jsonObj;
+				}
+			}else{
+				$info['success']="0";	
+				$info['MSG']=$app_lang['account_deactive'];
+				array_push($jsonObj,$info);
+				$set['HD_WALLPAPER'] = $jsonObj;
+			}
+
+		}
+		else
+		{ 
+ 			$info['success']="0";	
+			$info['MSG']="Email not found !";
+			array_push($jsonObj,$info);
+			$set['HD_WALLPAPER'] = $jsonObj;
+					
+		}
+				 
+		header( 'Content-Type: application/json; charset=utf-8' );
+		echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE));
+		die();
+	}
+	else if($get_method['method_name']=="user_register")
+	{
+		$jsonObj= array();	
+	
+		$qry = "SELECT * FROM tbl_users WHERE email = '".$get_method['email']."'"; 
+
+		$result = mysqli_query($mysqli,$qry);
+		$row = mysqli_fetch_assoc($result);
+		
+		if($row['email']!="")
+		{	
+			$info['success']="0";	
+			$app_lang['email_exist']="Email is already registered !";
+			array_push($jsonObj,$info);
+		}
+		else
+		{ 
+			$data = array(				    
+			    'name'  => $get_method['name'],				    
+				'email'  =>  $get_method['email'],
+				'password'  =>  $get_method['password'],
+				'phone'  =>  $get_method['phone']
+			);		
+ 			 
+
+			$qry = Insert('tbl_users',$data);									 
+				
+			$last_id=LastID('tbl_users');	 
+			
+			$info['success']="1";	
+			$info['MSG']=$app_lang['register_success'];
+			array_push($jsonObj,$info);	
+		}
+
+		
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+				 
+		header( 'Content-Type: application/json; charset=utf-8' );
+		echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE));
+		die();
+
+	}
+	else if($get_method['method_name']=="user_profile")
+	{
+		$jsonObj= array();	
+		
+		$user_id=$get_method['user_id'];
+
+		$qry = "SELECT * FROM tbl_users WHERE id = '$user_id'"; 
+
+		$result = mysqli_query($mysqli,$qry);
+		
+		$row = mysqli_fetch_assoc($result);	
+
+		$data['success']="1";
+		$data['user_id'] = $row['id'];
+		$data['name'] = $row['name'];
+		$data['email'] = $row['email'];
+		$data['phone'] = $row['phone'];
+
+		array_push($jsonObj,$data);
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+				 
+		header( 'Content-Type: application/json; charset=utf-8' );
+		echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE));
+		die();
+	}
+	else if($get_method['method_name']=="edit_profile")
+	{
+		$jsonObj= array();	
+		
+		$qry = "SELECT * FROM tbl_users WHERE id = '".$get_method['user_id']."'"; 
+		$result = mysqli_query($mysqli,$qry);
+		$row = mysqli_fetch_assoc($result);
+ 	 
+ 	 	if (!filter_var($get_method['email'], FILTER_VALIDATE_EMAIL)) 
+		{
+			$set['HD_WALLPAPER'][]=array('MSG' => $app_lang['invalid_email_format'],'success'=>'0');
+
+			header( 'Content-Type: application/json; charset=utf-8' );
+			$json = json_encode($set);
+			echo $json;
+			 exit;
+		}
+		else if($row['email']==$get_method['email'] AND $row['id']!=$get_method['user_id'])
+		{
+			$set['HD_WALLPAPER'][]=array('MSG' => $app_lang['email_exist'],'success'=>'0');
+
+			header( 'Content-Type: application/json; charset=utf-8' );
+			$json = json_encode($set);
+			echo $json;
+			exit;
+		}
+ 	 	else if($get_method['password']!="")
+		{
+			$data = array(
+			'name'  =>  $get_method['name'],
+			'email'  =>  $get_method['email'],
+			'password'  =>  $get_method['password'],
+			'phone'  =>  $get_method['phone'] 
+			);
+		}
+		else
+		{
+			$data = array(
+			'name'  =>  $get_method['name'],
+			'email'  =>  $get_method['email'],			 
+			'phone'  =>  $get_method['phone'] 
+			);
+		}
+ 
+		$user_edit=Update('tbl_users', $data, "WHERE id = '".$get_method['user_id']."'");
+	 		 
+		$set['HD_WALLPAPER'][]=array('MSG'=>$app_lang['update_success'],'success'=>'1');
+
+		header( 'Content-Type: application/json; charset=utf-8' );
+		$json = json_encode($set);
+		echo $json;
+		exit;
+	}
+	else if($get_method['method_name']=="forgot_pass")
+	{
+		$host = $_SERVER['HTTP_HOST'];
+		preg_match("/[^\.\/]+\.[^\.\/]+$/", $host, $matches);
+		$domain_name=$matches[0];
+		 
+			 
+		$qry = "SELECT * FROM tbl_users WHERE email = '".$get_method['email']."'"; 
+		$result = mysqli_query($mysqli,$qry);
+		$row = mysqli_fetch_assoc($result);
+
+		if($row['email']!="")
+		{
+
+			$to = $row['email'];
+			$recipient_name=$row['name'];
+			// subject
+			$subject = '[IMPORTANT] '.APP_NAME.' Forgot Password Information';
+				
+			$message='<div style="background-color: #f9f9f9;" align="center"><br />
+					  <table style="font-family: OpenSans,sans-serif; color: #666666;" border="0" width="600" cellspacing="0" cellpadding="0" align="center" bgcolor="#FFFFFF">
+					    <tbody>
+					      <tr>
+					        <td colspan="2" bgcolor="#FFFFFF" align="center"><img src="'.$file_path.'images/'.APP_LOGO.'" alt="header" /></td>
+					      </tr>
+					      <tr>
+					        <td width="600" valign="top" bgcolor="#FFFFFF"><br>
+					          <table style="font-family:OpenSans,sans-serif; color: #666666; font-size: 10px; padding: 15px;" border="0" width="100%" cellspacing="0" cellpadding="0" align="left">
+					            <tbody>
+					              <tr>
+					                <td valign="top"><table border="0" align="left" cellpadding="0" cellspacing="0" style="font-family:OpenSans,sans-serif; color: #666666; font-size: 10px; width:100%;">
+					                    <tbody>
+					                      <tr>
+					                        <td><p style="color: #262626; font-size: 28px; margin-top:0px;"><strong>Dear '.$row['name'].'</strong></p>
+					                          <p style="color:#262626; font-size:20px; line-height:32px;font-weight:500;">Thank you for using '.APP_NAME.',<br>
+					                            Your password is: '.$row['password'].'</p>
+					                          <p style="color:#262626; font-size:20px; line-height:32px;font-weight:500;margin-bottom:30px;">Thanks you,<br />
+					                            '.APP_NAME.'.</p></td>
+					                      </tr>
+					                    </tbody>
+					                  </table></td>
+					              </tr>
+					               
+					            </tbody>
+					          </table></td>
+					      </tr>
+					      <tr>
+					        <td style="color: #262626; padding: 20px 0; font-size: 20px; border-top:5px solid #52bfd3;" colspan="2" align="center" bgcolor="#ffffff">Copyright © '.APP_NAME.'.</td>
+					      </tr>
+					    </tbody>
+					  </table>
+					</div>';
+
+			send_email($to,$recipient_name,$subject,$message);
+
+			 	  
+			$set['HD_WALLPAPER'][]=array('MSG' => $app_lang['password_sent_mail'],'success'=>'1');
+		}
+		else
+		{  	 
+				
+			$set['HD_WALLPAPER'][]=array('MSG' => $app_lang['email_not_found'],'success'=>'0');
+					
+		}
+
+		header( 'Content-Type: application/json; charset=utf-8' );
+	    echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE));
+		die();
+
+	}
+	else if($get_method['method_name']=="user_report")
+	{
+		$jsonObj= array();	
+		$user_id=$get_method['user_id'];
+		$item_id=$get_method['item_id'];
+		$user_txt=$get_method['user_txt'];
+		$report_for=$get_method['report_for'];
+
+		$data = array(
+				'report_for' => $report_for,				    
+			    'user_id'  => $user_id,				    
+				'parent_id'  =>  $item_id,
+				'user_message'  =>  $user_txt
+			);		
+ 			 
+
+		$qry = Insert('tbl_user_report',$data);									 
+			
+		$info['success']="1";	
+		$info['MSG']=$app_lang['report_success'];
+
+		array_push($jsonObj,$info);
+
+		$set['HD_WALLPAPER'] = $jsonObj;
+		
+				 
+		header( 'Content-Type: application/json; charset=utf-8' );
+		echo $val= str_replace('\\/', '/', json_encode($set,JSON_UNESCAPED_UNICODE));
+		die();
+
+	}
+	else
+	{
+		$get_method = checkSignSalt($_POST['data']);
+	}		
+	 
+	 
+?>
